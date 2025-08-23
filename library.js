@@ -2245,7 +2245,9 @@ const Playlist = (function () {
 
     function changeCover(data) {
         let img;
-        if (data.hasOwnProperty('sourceCover')) {
+        if (data.hasOwnProperty('coverImage') && data.coverImage) { 
+            img = data.coverImage;
+        } else if (data.hasOwnProperty('sourceCover')) {
             img = getCover(data.sourceCover);
         } else if (data.randomCover == 'update' || (data.randomCover == 'once' && hasMosaicCover(data.id))) {
             img = getRandomCover();
