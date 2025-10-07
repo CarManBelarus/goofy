@@ -1,7 +1,7 @@
 // Документация: https://chimildic.github.io/goofy
 // Телеграм: https://t.me/forum_goofy
 // Форум: https://github.com/Chimildic/goofy/discussions
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 const UserProperties = PropertiesService.getUserProperties();
 const KeyValue = UserProperties.getProperties();
 const API_BASE_URL = 'https://api.spotify.com/v1';
@@ -266,6 +266,10 @@ const Audiolist = (function () {
         TEXT_TRACK: { entityType: 'TRACK', platform: 'TEXT', classType: 'TrackFromText' }
     }
 
+    VARIABLE_TYPES.find = function (type) {
+        return Object.values(VARIABLE_TYPES).find((value) => value.platform == type.platform && value.entityType == type.entityType)
+    }
+
     function responseMessage(text, type = MESSAGE_TYPES.DEFAULT) {
         return response({ message: text, messageType: type })
     }
@@ -317,7 +321,7 @@ const Audiolist = (function () {
 
     function parseINI(iniRaw) {
         if (iniRaw == undefined || iniRaw.length == 0) {
-            return undefined
+            return {}
         }
         let ini = {}
         let currentSection = ini
@@ -378,6 +382,14 @@ const Audiolist = (function () {
         }
     }
 
+    function combineInputVariables(data, targetType) {
+        targetType = targetType || data.inputVariables[0].type
+        let inputItemsGroup = data.inputVariables
+            .filter(variable => variable.type.platform == targetType.platform && variable.type.entityType == targetType.entityType)
+            .map(variable => variable.items)
+        return Combiner.push([], ...inputItemsGroup)
+    }
+
     return {
         MESSAGE_TYPES, VARIABLE_TYPES, responseMessage, responseItems, response,
 
@@ -390,19 +402,83 @@ const Audiolist = (function () {
                     return Audiolist.responseMessage(`Не удалось найти функцию с именем ${funcName}. Проверьте регистр букв и обновите развертывание.`, Audiolist.MESSAGE_TYPES.ERROR)
                 }
                 data.ini = parseINI(data.iniRaw)
+                data.items = data.inputVariables?.[0]?.items // Обратная совместимость
+                data.getItems = function (name) {
+                    return data.inputVariables.find((variable) => variable.name == name).items
+                }
+                data.combineItems = function (targetType) {
+                    return combineInputVariables(data, targetType)
+                }
                 return func(data)
             } catch (e) {
-                return Audiolist.responseMessage(e.message, Audiolist.MESSAGE_TYPES.ERROR)
+                console.error(e.stack)
+                return Audiolist.responseMessage(e.stack, Audiolist.MESSAGE_TYPES.ERROR)
             }
         },
 
-        hello() {
-            return responseMessage('Hello world! Тебе удалось соединить goofy и Audiolist. Можешь запускать любые функции и отправлять ответы. Например, встроенная функция "Audiolist.history" пришлет все треки из истории прослушиваний goofy. Чтобы использовать их в следующих командах, добавь выходную переменную для команды "Функция goofy".')
+        hello(data) {
+            return responseMessage(`Hello World, ${data.ini.username || User.getUser()?.display_name || 'Username'}! Тебе удалось соединить goofy и Audiolist. Можешь запускать любые функции и отправлять ответы. Например, встроенная функция "Audiolist.getRecentTracks" пришлет все треки из истории прослушиваний goofy. Чтобы использовать эти треки в следующих командах, добавь переменную результата для команды "Функция goofy".`)
         },
 
-        history() {
-            let recentTracks = RecentTracks.get()
-            return responseItems(recentTracks, Audiolist.VARIABLE_TYPES.SPOTIFY_TRACK)
+        getRecentTracks(data) {
+            let items = RecentTracks.get(data.ini.limit)
+            if (data.ini.sinceDays != undefined) {
+                Filter.rangeDateRel(items, data.ini.sinceDays, data.ini.beforeDays)
+            }
+            return responseItems(Selector.sliceFirst(items, data.ini.limit), VARIABLE_TYPES.SPOTIFY_TRACK)
+        },
+
+        syncRecentTracks(data) {
+            RecentTracks.update()
+
+            let filename = data.ini.filename || "SpotifyRecentTracks"
+            let recentItems = Cache.read(filename)
+            if (data.ini.sinceDays != undefined) {
+                Filter.rangeDateRel(recentItems, data.ini.sinceDays, data.ini.beforeDays)
+            }
+
+            let itemsFromAudiolist = data.combineItems(VARIABLE_TYPES.SPOTIFY_TRACK)
+            Filter.removeTracks(itemsFromAudiolist, recentItems)
+            if (itemsFromAudiolist.length > 0) {
+                RecentTracks.appendTracks(filename, itemsFromAudiolist)
+            }
+
+            return Audiolist.response({
+                message: itemsFromAudiolist.length > 0 ? `+${itemsFromAudiolist.length} в "${filename}"` : `Нет новых треков для "${filename}"`,
+                messageType: Audiolist.MESSAGE_TYPES.DEFAULT,
+                variableType: Audiolist.VARIABLE_TYPES.SPOTIFY_TRACK,
+                items: recentItems,
+            })
+        },
+
+        readCache(data) {
+            let items = Cache.read(data.ini.filename)
+            let limit = data.ini?.limit == undefined ? items.length : data.ini.limit
+            if (data.ini?.sinceDays != undefined) {
+                Filter.rangeDateRel(items, data.ini?.sinceDays, data.ini?.beforeDays)
+            }
+            return Audiolist.response({
+                message: `${limit} - элементов из файла "${data.ini.filename}"`,
+                messageType: Audiolist.MESSAGE_TYPES.DEFAULT,
+                variableType: Audiolist.VARIABLE_TYPES.find(data.outputVariable.type),
+                items: Selector.sliceFirst(items, limit),
+            })
+        },
+
+        writeCache(data) {
+            let items = data.combineItems()
+            Cache.compressTracks(items)
+            Cache.write(data.ini.filename, items)
+            return Audiolist.responseMessage(`${items.length} - элементов в файле "${data.ini.filename}"`)
+        },
+
+        appendCache(data) {
+            let items = data.combineItems()
+            if (items.length > 0) {
+                Cache.compressTracks(items)
+                Cache.append(data.ini.filename, items, data.ini.place)
+            }
+            return Audiolist.responseMessage(items.length > 0 ? `+${items.length} в "${data.ini.filename}"` : `В файл "${data.ini.filename}" ничего не добавлено`)
         }
     }
 })()
@@ -3436,6 +3512,7 @@ const User = (function () {
     return {
         get id() { return KeyValue['userId'] },
         get country() { return getUser().country },
+        getUser,
     };
 
     function setProfile() {
@@ -3488,13 +3565,14 @@ const Cache = (function () {
     return {
         get RootFolder() { return ROOT_FOLDER; },
         get UserFolder() { return USER_FOLDER; },
-        read, write, append, copy, remove, rename, compressTracks, compressArtists,
+        write: writeWithLock,
+        read, append, copy, remove, rename, compressTracks, compressArtists,
     };
 
     function read(filepath) {
         let content = Storage.getContent(filepath);
         if (!content) {
-            content = getContentFromFile();
+            content = withFileLock(filepath, getContentFromFile);
             Storage.setContent(filepath, content);
         }
         return Selector.sliceCopy(content);
@@ -3517,33 +3595,6 @@ const Cache = (function () {
         }
     }
 
-    function append(filepath, content, place = 'end', limit = 200000) {
-        if (!content || content.length == 0) return;
-        let currentContent = read(filepath);
-        let ext = obtainFileExtension(filepath);
-        return ext == 'json' ? appendJSON() : appendString();
-
-        function appendJSON() {
-            return place == 'begin'
-                ? appendNewData(content, currentContent)
-                : appendNewData(currentContent, content);
-
-            function appendNewData(xData, yData) {
-                let allData = [];
-                Combiner.push(allData, xData, yData);
-                Selector.keepFirst(allData, limit);
-                write(filepath, allData);
-                return allData.length;
-            }
-        }
-
-        function appendString() {
-            let raw = place == 'begin' ? (content + currentContent) : (currentContent + content);
-            write(filepath, raw);
-            return raw.length;
-        }
-    }
-
     function write(filepath, content) {
         let file = findFile(filepath) || createFile(filepath);
         let ext = obtainFileExtension(filepath);
@@ -3562,6 +3613,69 @@ const Cache = (function () {
                 Admin.pause(5);
                 trySetContent();
             }
+        }
+    }
+
+    function append(filepath, content, place = 'end', limit = 400000) {
+        if (!content || content.length == 0) return;
+        let currentContent = read(filepath);
+        let ext = obtainFileExtension(filepath);
+        return ext == 'json' ? appendJSON() : appendString();
+
+        function appendJSON() {
+            return place == 'begin'
+                ? appendNewData(content, currentContent)
+                : appendNewData(currentContent, content);
+
+            function appendNewData(xData, yData) {
+                let allData = [];
+                Combiner.push(allData, xData, yData);
+                Selector.keepFirst(allData, limit);
+                writeWithLock(filepath, allData);
+                return allData.length;
+            }
+        }
+
+        function appendString() {
+            let raw = place == 'begin' ? (content + currentContent) : (currentContent + content);
+            writeWithLock(filepath, raw);
+            return raw.length;
+        }
+    }
+
+    function writeWithLock(filepath, content) {
+        return withFileLock(filepath, write, arguments)
+    }
+
+    function withFileLock(filename, targetFunction, args) {
+        const LOCK_KEY = 'filelock_' + filename
+        const LOCK_TIMEOUT_MINUTES = 6
+
+        while (true) {
+            let scriptLock = LockService.getScriptLock()
+
+            try {
+                scriptLock.waitLock(15000)
+                let properties = PropertiesService.getScriptProperties()
+                let lockTimestamp = properties.getProperty(LOCK_KEY)
+                let currentTime = new Date().getTime()
+
+                if (lockTimestamp === null || ((currentTime - parseInt(lockTimestamp, 10)) / 60000) > LOCK_TIMEOUT_MINUTES) {
+                    properties.setProperty(LOCK_KEY, currentTime.toString())
+                    break
+                }
+            } finally {
+                scriptLock.releaseLock()
+            }
+
+            Admin.printInfo(`Лок у файла "${filename}". Ожидание 2с.`)
+            Utilities.sleep(2000)
+        }
+
+        try {
+            return targetFunction.apply(null, args);
+        } finally {
+            PropertiesService.getScriptProperties().deleteProperty(LOCK_KEY)
         }
     }
 
