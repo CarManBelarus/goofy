@@ -1,7 +1,7 @@
-// Документация: https://chimildic.github.io/goofy
-// Телеграм: https://t.me/forum_goofy
+// Дакументацыя: https://chimildic.github.io/goofy
+// Тэлеграм: https://t.me/forum_goofy
 // Форум: https://github.com/Chimildic/goofy/discussions
-const VERSION = '2.3.0';
+const VERSION = '2.3.0-be'; // Дадамо пазнаку беларускай версіі
 const UserProperties = PropertiesService.getUserProperties();
 const KeyValue = UserProperties.getProperties();
 const API_BASE_URL = 'https://api.spotify.com/v1';
@@ -27,7 +27,7 @@ function displayLaunchPage_() {
             .addMetaTag('viewport', 'width=device-width, initial-scale=1')
             .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     } catch {
-        return HtmlService.createHtmlOutput('Авторизация прошла успешно');
+        return HtmlService.createHtmlOutput('Аўтарызацыя прайшла паспяхова');
     }
 }
 
@@ -87,7 +87,7 @@ JSON.parseFromString = function (content) {
     try {
         return JSON.parse(content);
     } catch (error) {
-        Admin.printError('Не удалось преобразовать строку JSON в объект JavaScript\n', error.stack, '\nКонтент:', `"${content}"`);
+        Admin.printError('Не атрымалася пераўтварыць радок JSON у аб\'ект JavaScript\n', error.stack, '\nКантэнт:', `"${content}"`);
         return undefined;
     }
 }
@@ -95,7 +95,7 @@ JSON.parseFromString = function (content) {
 JSON.parseFromResponse = function (response) {
     let content = response.getContentText();
     if (content.length == 0) {
-        return { msg: 'Пустое тело ответа', status: response.getResponseCode() };
+        return { msg: 'Пустое цела адказу', status: response.getResponseCode() };
     }
     return JSON.parseFromString(content);
 }
@@ -219,9 +219,9 @@ const CustomUrlFetchApp = (function () {
         function writeErrorLog() {
             let errorText = response.getContentText().substring(0, 500)
             if (errorText.toLowerCase().includes('access not granted')) {
-                throw `Нет прав доступа. Для повторной авторизации:\n1) Нажмите "начать развертывание > пробные развертывания"\n2) Перейдите по ссылке "веб-приложение"\n3) Подтвердите права доступа\n\nОшибка может возникать при смене пароля от Spotify аккаунта.\n\nЕсли при переходе по ссылке веб-приложения страница не открывается, повторите шаги в режиме инкогнито\n(Google делает автоматический редирект на другой аккаунт, где ваш проект с goofy недоступен).`
+                throw `Няма правоў доступу. Для паўторнай аўтарызацыі:\n1) Націсніце "пачаць разгортванне > пробныя разгортванні"\n2) Перайдзіце па спасылцы "вэб-дадатак"\n3) Пацвердзіце правы доступу\n\nПамылка можа ўзнікаць пры змене пароля ад Spotify-акаўнта.\n\nКалі пры пераходзе па спасылцы вэб-дадатка старонка не адкрываецца, паўтарыце крокі ў рэжыме інкогніта\n(Google робіць аўтаматычны рэдырэкт на іншы акаўнт, дзе ваш праект з goofy недаступны).`
             } else {
-                Admin.printError(`Номер: ${response.getResponseCode()}\nАдрес: ${url}\nМетод: ${params.method}\nТекст ответа: ${errorText}`);
+                Admin.printError(`Нумар: ${response.getResponseCode()}\nАдрас: ${url}\nМетад: ${params.method}\nТэкст адказу: ${errorText}`);
             }
         }
     }
@@ -241,7 +241,7 @@ const CustomUrlFetchApp = (function () {
         try {
             return callback();
         } catch (error) {
-            Admin.printError('При отправке запроса произошла ошибка:\n', error.stack);
+            Admin.printError('Пры адпраўцы запыту адбылася памылка:\n', error.stack);
             if (attempt++ < 2) {
                 Admin.pause(5);
                 return tryCallback(callback, attempt);
@@ -281,9 +281,9 @@ const Audiolist = (function () {
     function response(params = {}) {
         if (params.items != undefined) {
             if (params.variableType == undefined) {
-                throw "Отсутствует variableType"
+                throw "Адсутнічае variableType"
             } else if (!Array.isArray(params.items)) {
-                throw "items может быть только массивом"
+                throw "items можа быць толькі масівам"
             } else {
                 if (params.variableType == VARIABLE_TYPES.LASTFM_TRACK) {
                     params.items = mapLastfmTracks(params.items)
@@ -305,6 +305,7 @@ const Audiolist = (function () {
         }))
     }
 
+
     function mapTextTracks(items) {
         return items.map(item => {
             let query = ''
@@ -318,6 +319,7 @@ const Audiolist = (function () {
             return { query }
         })
     }
+
 
     function parseINI(iniRaw) {
         if (iniRaw == undefined || iniRaw.length == 0) {
@@ -382,6 +384,7 @@ const Audiolist = (function () {
         }
     }
 
+
     function combineInputVariables(data, targetType) {
         targetType = targetType || data.inputVariables[0].type
         let inputItemsGroup = data.inputVariables
@@ -399,10 +402,10 @@ const Audiolist = (function () {
                 let { funcName, ...data } = JSON.parse(args.postData.contents)
                 let func = funcName.split('.').reduce((acc, key) => acc?.[key], this)
                 if (func == undefined) {
-                    return Audiolist.responseMessage(`Не удалось найти функцию с именем ${funcName}. Проверьте регистр букв и обновите развертывание.`, Audiolist.MESSAGE_TYPES.ERROR)
+                    return Audiolist.responseMessage(`Не атрымалася знайсці функцыю з імем ${funcName}. Праверце рэгістр літар і абнавіце разгортванне.`, Audiolist.MESSAGE_TYPES.ERROR)
                 }
                 data.ini = parseINI(data.iniRaw)
-                data.items = data.inputVariables?.[0]?.items // Обратная совместимость
+                data.items = data.inputVariables?.[0]?.items // Зваротная сумяшчальнасць
                 data.getItems = function (name) {
                     return data.inputVariables.find((variable) => variable.name == name).items
                 }
@@ -417,7 +420,7 @@ const Audiolist = (function () {
         },
 
         hello(data) {
-            return responseMessage(`Hello World, ${data.ini.username || User.getUser()?.display_name || 'Username'}! Тебе удалось соединить goofy и Audiolist. Можешь запускать любые функции и отправлять ответы. Например, встроенная функция "Audiolist.getRecentTracks" пришлет все треки из истории прослушиваний goofy. Чтобы использовать эти треки в следующих командах, добавь переменную результата для команды "Функция goofy".`)
+            return responseMessage(`Вітанкі, ${data.ini.username || User.getUser()?.display_name || 'Username'}! Табе ўдалося злучыць goofy і Audiolist. Можаш запускаць любыя функцыі і адпраўляць адказы. Напрыклад, убудаваная функцыя "Audiolist.getRecentTracks" дашле ўсе трэкі з гісторыі праслухоўванняў goofy. Каб выкарыстоўваць гэтыя трэкі ў наступных камандах, дадай зменную выніку для каманды "Функцыя goofy".`)
         },
 
         getRecentTracks(data) {
@@ -444,7 +447,7 @@ const Audiolist = (function () {
             }
 
             return Audiolist.response({
-                message: itemsFromAudiolist.length > 0 ? `+${itemsFromAudiolist.length} в "${filename}"` : `Нет новых треков для "${filename}"`,
+                message: itemsFromAudiolist.length > 0 ? `+${itemsFromAudiolist.length} у "${filename}"` : `Няма новых трэкаў для "${filename}"`,
                 messageType: Audiolist.MESSAGE_TYPES.DEFAULT,
                 variableType: Audiolist.VARIABLE_TYPES.SPOTIFY_TRACK,
                 items: recentItems,
@@ -458,7 +461,7 @@ const Audiolist = (function () {
                 Filter.rangeDateRel(items, data.ini?.sinceDays, data.ini?.beforeDays)
             }
             return Audiolist.response({
-                message: `${limit} - элементов из файла "${data.ini.filename}"`,
+                message: `${limit} - элементаў з файла "${data.ini.filename}"`,
                 messageType: Audiolist.MESSAGE_TYPES.DEFAULT,
                 variableType: Audiolist.VARIABLE_TYPES.find(data.outputVariable.type),
                 items: Selector.sliceFirst(items, limit),
@@ -469,7 +472,7 @@ const Audiolist = (function () {
             let items = data.combineItems()
             Cache.compressTracks(items)
             Cache.write(data.ini.filename, items)
-            return Audiolist.responseMessage(`${items.length} - элементов в файле "${data.ini.filename}"`)
+            return Audiolist.responseMessage(`${items.length} - элементаў у файле "${data.ini.filename}"`)
         },
 
         appendCache(data) {
@@ -478,7 +481,7 @@ const Audiolist = (function () {
                 Cache.compressTracks(items)
                 Cache.append(data.ini.filename, items, data.ini.place)
             }
-            return Audiolist.responseMessage(items.length > 0 ? `+${items.length} в "${data.ini.filename}"` : `В файл "${data.ini.filename}" ничего не добавлено`)
+            return Audiolist.responseMessage(items.length > 0 ? `+${items.length} у "${data.ini.filename}"` : `У файл "${data.ini.filename}" нічога не дададзена`)
         }
     }
 })()
@@ -656,7 +659,7 @@ const Source = (function () {
         Selector.keepRandom(items, limit);
         return items.reduce((tracks, album) => {
             let albumTracks = album.tracks.items.map(item => (item.album = album, item));
-            // Фикс ошибки при использовании JSON.stringify
+            // Фікс памылкі пры выкарыстанні JSON.stringify
             // TypeError: Converting circular structure to JSON
             delete album.tracks;
             return Combiner.push(tracks, albumTracks)
@@ -688,7 +691,7 @@ const Source = (function () {
 
     function getRecentReleasesByArtists(params) {
         if (params.artists.length >= 300) {
-            console.warn(`При большом количестве исполнителей (запрошено ${params.artists.length}) функция может не уложиться в лимит времени выполнения\nили получить временный бан от Spotify за спам запросами.\n\nВоспользуйтесь шаблоном: https://chimildic.github.io/goofy/#/template?id=Новые-релизы-по-частям`)
+            console.warn(`Пры вялікай колькасці выканаўцаў (запытана ${params.artists.length}) функцыя можа не ўкласціся ў ліміт часу выканання\nабо атрымаць часовы бан ад Spotify за спам запытамі.\n\nСкарыстайцеся шаблонам: https://chimildic.github.io/goofy/#/template?id=Новыя-рэлізы-па-частках`)
         }
         let initDateStr = new Date().toISOString()
         let startDate = params.date.hasOwnProperty('sinceDays') ? Filter.getDateRel(params.date.sinceDays, 'startDay') : params.date.startDate
@@ -756,7 +759,7 @@ const Source = (function () {
             getTracksMethod = getAlbumsTracks;
         } else if (params.type == 'track') {
             findMethod = Search.findTracks;
-            // getTracksMethod - не нужно, треки уже в результате поиска
+            // getTracksMethod - не патрэбны, трэкі ўжо ў выніку пошуку
         } else {
             params.type = 'playlist';
             findMethod = Search.findPlaylists;
@@ -855,7 +858,7 @@ const Source = (function () {
                 value -= params.query.seed_artists.split(',').length;
             }
             if (value <= 0) {
-                throw `Не осталось места под ${params.key}. Уменьшите количество значения других seed_*`;
+                throw `Не засталося месца пад ${params.key}. Паменшыце колькасць значэнняў іншых seed_*`;
             }
             return value;
         }
@@ -1066,12 +1069,12 @@ const RecentTracks = (function () {
 
     function appendNewPlayed(newItems, filename) {
         if (newItems.length == 0) {
-            Admin.printInfo(`Нет новых треков ${filename}`);
+            Admin.printInfo(`Няма новых трэкаў ${filename}`);
             return false;
         }
         Cache.compressTracks(newItems);
         let total = Cache.append(filename, newItems, 'begin', ITEMS_LIMIT);
-        Admin.printInfo(`+${newItems.length}, всего: ${total} (${filename})`);
+        Admin.printInfo(`+${newItems.length}, усяго: ${total} (${filename})`);
         return true;
     }
 
@@ -1402,14 +1405,14 @@ const Filter = (function () {
                 if (!t) {
                     let id = unclearState[i];
                     let track = tracks.find(t => t.id == id);
-                    Admin.printInfo(`У трека изменился id, старое значение ${id} (${getTrackKeys(track)})`);
+                    Admin.printInfo(`У трэка змяніўся id, старое значэнне ${id} (${getTrackKeys(track)})`);
                     unavailableState.push(id);
                 } else if (t.hasOwnProperty('is_playable') && t.is_playable) {
                     let id = t.linked_from ? t.linked_from.id : t.id;
                     availableState.push(id);
                 } else {
                     unavailableState.push(t.id);
-                    Admin.printInfo('Трек нельзя послушать:', t.id, '-', getTrackKeys(t)[0]);
+                    Admin.printInfo('Трэк нельга паслухаць:', t.id, '-', getTrackKeys(t)[0]);
                 }
             });
         }
@@ -1544,7 +1547,7 @@ const Filter = (function () {
 
     function detectLanguage(tracks, params) {
         if (!KeyValue.MUSIXMATCH_API_KEY) {
-            throw 'Задайте параметр MUSIXMATCH_API_KEY для работы с функцией detectLanguage';
+            throw 'Задайце параметр MUSIXMATCH_API_KEY для працы з функцыяй detectLanguage';
         }
 
         let isError = getLyrics();
@@ -1586,11 +1589,11 @@ const Filter = (function () {
                 }
 
                 if (json.message.header.status_code == 404) {
-                    Admin.printInfo('Не найден текст для', `${unknownLyrics[i].artists[0].name} - ${unknownLyrics[i].name}`)
+                    Admin.printInfo('Не знойдзены тэкст для', `${unknownLyrics[i].artists[0].name} - ${unknownLyrics[i].name}`)
                     unknownLyrics[i].lyrics.lang = 'und';
                 } else if (json.message.header.status_code != 200) {
-                    Admin.printError('Ошибка при получении текста',
-                        'Возможно превышен лимит от musixmatch.',
+                    Admin.printError('Памылка пры атрыманні тэксту',
+                        'Магчыма, перавышаны ліміт ад musixmatch.',
                         'Код:', json.message.header.status_code);
                     return true;
                 }
@@ -1602,7 +1605,7 @@ const Filter = (function () {
             let unknownLang = tracks.filter(t => !t.lyrics.lang);
             let row = unknownLang.map(t => `=DETECTLANGUAGE("${t.lyrics.text}")`);
             if (!row || row.length == 0) {
-                Admin.printInfo('Ноль треков для распознавания языка среди', tracks.length, 'треков');
+                Admin.printInfo('Нуль трэкаў для распазнавання мовы сярод', tracks.length, 'трэкаў');
                 return;
             }
 
@@ -1622,7 +1625,7 @@ const Filter = (function () {
             SpreadsheetApp.flush();
             sheet.getDataRange().getValues()[0].forEach((c, i) => {
                 if (c == '#ERROR!') {
-                    Admin.printError('Ошибка при попытки идентификации языка:', unknownLang[i].lyrics.text);
+                    Admin.printError('Памылка пры спробе ідэнтыфікацыі мовы:', unknownLang[i].lyrics.text);
                 }
                 unknownLang[i].lyrics.lang = c;
             });
@@ -1648,7 +1651,7 @@ const Filter = (function () {
         let endTime = endDate ? endDate.getTime() : Date.now();
 
         if (startTime >= endTime) {
-            Admin.printError('Левая граница больше чем правая:', startDate, endDate);
+            Admin.printError('Левая мяжа большая за правую:', startDate, endDate);
             return;
         }
 
@@ -1916,15 +1919,15 @@ const Selector = (function () {
         if (tracksByYear.hasOwnProperty(year) || tracks.length == 0) {
             return tracksByYear[year] || [];
         }
-        Admin.printInfo(`Среди ${tracks.length} треков нет вышедших в ${year} году`);
+        Admin.printInfo(`Сярод ${tracks.length} трэкаў няма тых, што выйшлі ў ${year} годзе`);
         year = parseInt(year);
         let keys = Object.keys(tracksByYear).map((item) => parseInt(item));
         let nearYear = keys.sort((x, y) => Math.abs(year - x) - Math.abs(year - y))[0];
         if (typeof nearYear != 'undefined' && Math.abs(nearYear - year) <= offset) {
-            Admin.printInfo(`Выбран ближайший год: ${nearYear}`);
+            Admin.printInfo(`Абраны найбліжэйшы год: ${nearYear}`);
             return tracksByYear[nearYear.toString()];
         }
-        Admin.printInfo(`При смещении ${offset}, ближайший год не найден`);
+        Admin.printInfo(`Пры зрушэнні ${offset}, найбліжэйшы год не знойдзены`);
         return [];
     }
 })();
@@ -2170,7 +2173,7 @@ const Playlist = (function () {
 
     function getDescription(tracks, limit = 5) {
         let artists = Array.from(new Set(tracks.map(t => t.artists[0].name)));
-        return `${Selector.sliceRandom(artists, limit).join(', ')} и не только`;
+        return `${Selector.sliceRandom(artists, limit).join(', ')} і не толькі`;
     }
 
     function removeNonExistingTracks(id, localTracks) {
@@ -2268,7 +2271,7 @@ const Playlist = (function () {
         let count = Math.ceil(uris.length / SIZE);
         let url = `${API_BASE_URL}/playlists/${data.id}/tracks`;
         if (count == 0 && requestType == 'put') {
-            // Удалить треки в плейлисте
+            // Выдаліць трэкі ў плэйлісце
             SpotifyRequest.put(url, { uris: [] });
             return;
         }
@@ -2281,18 +2284,18 @@ const Playlist = (function () {
                 payload.position = begin;
             }
             if (SpotifyRequest[requestType](url, payload) != undefined) {
-                requestType = 'post'; // сменить тип запроса, чтобы добавлять треки после первого put-запроса
+                requestType = 'post'; // змяніць тып запыту, каб дадаваць трэкі пасля першага put-запыту
             } else if (attempt++ < 3) {
                 if (attempt == 1) {
                     createTrackBackup()
                     if (Playlist.getById(data.id) == undefined) {
-                        throw `Невозможно добавить треки. Плейлиста с id ${data.id} не существует. Исправьте id у функции Playlist.save*`
+                        throw `Немагчыма дадаць трэкі. Плэйліста з id ${data.id} не існуе. Выпраўце id у функцыі Playlist.save*`
                     }
                 }
-                i--; // повторить запрос
+                i--; // паўтарыць запыт
                 Admin.pause(5);
             } else {
-                Admin.printInfo('Прервано добавление треков после 3 неудачных попыток');
+                Admin.printInfo('Перапынена даданне трэкаў пасля 3 няўдалых спроб');
                 break;
             }
         }
@@ -2301,7 +2304,7 @@ const Playlist = (function () {
             let filepath = `backup/playlists/${data.id}.json`;
             Cache.compressTracks(data.tracks);
             Cache.write(filepath, data.tracks);
-            Admin.printInfo(`Создана резервная копия треков: ${filepath}`);
+            Admin.printInfo(`Створана рэзервовая копія трэкаў: ${filepath}`);
         }
     }
 
@@ -2321,7 +2324,7 @@ const Playlist = (function () {
 
     function changeCover(data) {
         let img;
-        if (data.hasOwnProperty('coverImage') && data.coverImage) { 
+        if (data.hasOwnProperty('coverImage') && data.coverImage) {
             img = data.coverImage;
         } else if (data.hasOwnProperty('sourceCover')) {
             img = getCover(data.sourceCover);
@@ -2577,7 +2580,7 @@ const Lastfm = (function () {
         let queryObj = { method: 'user.getlovedtracks', user: validUser(user), limit: limit || 200 };
         let tracks = getPage(queryObj);
         if (!tracks.lovedtracks) {
-            Admin.printError('Ошибка при получении любимых треков', tracks);
+            Admin.printError('Памылка пры атрыманні ўпадабаных трэкаў', tracks);
             return [];
         }
         return Search.multisearchTracks(tracks.lovedtracks.track, formatTrackNameLastfm);
@@ -2587,7 +2590,7 @@ const Lastfm = (function () {
         params.method = 'user.gettoptracks';
         let tracks = getTopPage(params);
         if (!tracks.toptracks) {
-            Admin.printError('Ошибка при получении топа треков', tracks);
+            Admin.printError('Памылка пры атрыманні топу трэкаў', tracks);
             return [];
         }
         return Search.multisearchTracks(tracks.toptracks.track, formatTrackNameLastfm);
@@ -2597,7 +2600,7 @@ const Lastfm = (function () {
         params.method = 'user.gettopartists';
         let artists = getTopPage(params);
         if (!artists.topartists) {
-            Admin.printError('Ошибка при получении топа исполнителей', artists);
+            Admin.printError('Памылка пры атрыманні топу выканаўцаў', artists);
             return [];
         }
         return Search.multisearchArtists(artists.topartists.artist, formatArtistNameLastfm);
@@ -2607,7 +2610,7 @@ const Lastfm = (function () {
         params.method = 'user.gettopalbums';
         let albums = getTopPage(params);
         if (!albums.topalbums) {
-            Admin.printError('Ошибка при получении топа альбомов', albums);
+            Admin.printError('Памылка пры атрыманні топу альбомаў', albums);
             return [];
         }
         return Search.multisearchAlbums(albums.topalbums.album, formatAlbumNameLastfm);
@@ -2880,10 +2883,10 @@ const Lastfm = (function () {
                 if (response.toptags.tag.length > 0) {
                     t.tags = response.toptags.tag
                 } else if (response.toptags.tag.length == 0) {
-                    Admin.printInfo('У трека нет тегов', trackname);
+                    Admin.printInfo('У трэка няма тэгаў', trackname);
                 }
             } else if (response.error) {
-                Admin.printInfo(`${response.message}. Трек: ${trackname}`);
+                Admin.printInfo(`${response.message}. Трэк: ${trackname}`);
             }
         });
 
@@ -3002,8 +3005,8 @@ const Search = (function () {
             first = first.replace(/\s+/g, '');
             second = second.replace(/\s+/g, '');
 
-            if (first === second) return 1; // identical or empty
-            if (first.length < 2 || second.length < 2) return 0; // if either is a 0-letter or 1-letter string
+            if (first === second) return 1; // ідэнтычныя або пустыя
+            if (first.length < 2 || second.length < 2) return 0; // калі адзін з радкоў мае 0 або 1 літару
 
             let firstBigrams = new Map();
             for (let i = 0; i < first.length - 1; i++) {
@@ -3062,7 +3065,7 @@ const Search = (function () {
                     resultItems.push(item);
                 } else {
                     noFound.push({ type: type, keyword: uniqueKeywords[i], item: items[originKeywords.findIndex(item => item == uniqueKeywords[i])] });
-                    Admin.printInfo('Spotify по типу', type, 'не нашел:', uniqueKeywords[i]);
+                    Admin.printInfo('Spotify па тыпу', type, 'не знайшоў:', uniqueKeywords[i]);
                 }
             }
             return resultItems;
@@ -3210,14 +3213,14 @@ const getCachedTracks = (function () {
             fullAlbums.forEach((album, i) => isNull(album, uncachedTracks.albums[i], 'album') ? false : (cachedTracks.albums[album.id] = album));
         }
         if (uncachedTracks.features.length > 0) {
-            // limit = 100, но UrlFetchApp.fetch выдает ошибку о превышении длины URL
-            // При limit 85, длина URL для этого запроса 2001 символ
+            // ліміт = 100, але UrlFetchApp.fetch выдае памылку пра перавышэнне даўжыні URL
+            // Пры ліміце 85, даўжыня URL для гэтага запыту 2001 сімвал
             let features = SpotifyRequest.getFullObjByIds('audio-features', uncachedTracks.features, 85);
             features.forEach((item, i) => {
                 if (item == null) {
                     let id = uncachedTracks.features[i];
                     cachedTracks.features[id] = {};
-                    Admin.printInfo(`У трека нет features, id: ${id}`);
+                    Admin.printInfo(`У трэка няма features, id: ${id}`);
                 } else {
                     item.anger = item.energy * (1 - item.valence);
                     item.happiness = item.energy * item.valence;
@@ -3228,13 +3231,13 @@ const getCachedTracks = (function () {
         }
     }
 
-    // В объектах Track, Album, Artist Simplified нет ключа popularity
+    // У аб'ектах Track, Album, Artist Simplified няма ключа popularity
     function isSimplified(item) {
         return !item.popularity;
     }
 
     function isNull(item, sourceId, type) {
-        !item && Admin.printInfo(`По типу ${type} нет данных о ${sourceId}`);
+        !item && Admin.printInfo(`Па тыпу ${type} няма даных пра ${sourceId}`);
         return !item;
     }
 })();
@@ -3283,12 +3286,12 @@ const Auth = (function () {
         } else if (request.parameters.serviceName == 'private-spotify') {
             isAuthorized = privateService.handleCallback(request)
         }
-        return HtmlService.createHtmlOutput(isAuthorized ? 'Успешно' : 'Отказано в доступе');
+        return HtmlService.createHtmlOutput(isAuthorized ? 'Паспяхова' : 'Адмоўлена ў доступе');
     }
 
     function displayAuthPage() {
         let redirectTemplate = `https://chimildic.github.io/spotify/auth?baseurl=https://accounts.spotify.com/authorize&projectId=${ScriptApp.getScriptId()}&`
-        let htmlTemplate = '<p>При первой установке: добавьте нижнюю ссылку в поле Redirect URIs вашего приложения в Spotify Dashboard</p><p>https://chimildic.github.io/spotify/auth</p><p>Для работы всех функций предоставьте доступ каждому приложению:</p><ul><li><a href="%s" target="_blank">Выдать публичные права</a></li><li><a href="%s" target="_blank">Выдать приватные права</a></li>';
+        let htmlTemplate = '<p>Пры першай устаноўцы: дадайце ніжнюю спасылку ў поле Redirect URIs вашага дадатка ў Spotify Dashboard</p><p>https://chimildic.github.io/spotify/auth</p><p>Для працы ўсіх функцый дайце доступ кожнаму дадатку:</p><ul><li><a href="%s" target="_blank">Выдаць публічныя правы</a></li><li><a href="%s" target="_blank">Выдаць прыватныя правы</a></li>';
 
         let publicAuthUrl = publicService.getAuthorizationUrl()
         let privateAuthUrl = privateService.getAuthorizationUrl()
@@ -3383,7 +3386,7 @@ const SpotifyRequest = (function () {
             str = '{"' + decodeURI(str).replace(/"/g, '\\"').replace(/&/g, '","').replace(/=/g, '":"') + '"}';
             return JSON.parseFromString(str);
         } catch (error) {
-            Admin.printError(`Не удалось преобразовать строку в объект JavaScript\nСтрока: ${str}\n`, error.stack);
+            Admin.printError(`Не атрымалася пераўтварыць радок у аб'ект JavaScript\nРадок: ${str}\n`, error.stack);
             return {};
         }
     }
@@ -3579,7 +3582,7 @@ const Cache = (function () {
 
         function getContentFromFile(attempt = 0) {
             if (attempt == 3)
-                throw new Error(`Неизвестная ошибка при чтении файла ${filepath}`);
+                throw new Error(`Невядомая памылка пры чытанні файла ${filepath}`);
             let file = findFile(filepath);
             let ext = obtainFileExtension(filepath);
             if (!file) {
@@ -3587,7 +3590,7 @@ const Cache = (function () {
             }
             let str = tryGetBlobAsString(file);
             if (str.length == 0) {
-                Admin.printInfo('Пустая строка из blob-объекта');
+                Admin.printInfo('Пусты радок з blob-аб\'екта');
                 Admin.pause(2);
                 return getContentFromFile(++attempt)
             }
@@ -3609,7 +3612,7 @@ const Cache = (function () {
                     trySetContent();
                 }
             } catch (error) {
-                Admin.printError(`При записи в файл произошла ошибка\n`, error.stack);
+                Admin.printError(`Пры запісе ў файл адбылася памылка\n`, error.stack);
                 Admin.pause(5);
                 trySetContent();
             }
@@ -3668,7 +3671,7 @@ const Cache = (function () {
                 scriptLock.releaseLock()
             }
 
-            Admin.printInfo(`Лок у файла "${filename}". Ожидание 2с.`)
+            Admin.printInfo(`Лок у файла "${filename}". Чаканне 2с.`)
             Utilities.sleep(2000)
         }
 
@@ -3830,7 +3833,7 @@ const Cache = (function () {
         try {
             return file.getBlob().getDataAsString();
         } catch (error) {
-            Admin.printError('При получении данных из файла произошла ошибка\n', error.stack);
+            Admin.printError('Пры атрыманні даных з файла адбылася памылка\n', error.stack);
             Admin.pause(5);
             return tryGetBlobAsString(file);
         }
@@ -3953,11 +3956,11 @@ const Admin = (function () {
     }
 
     function printError(...data) {
-        isErrorLvl && console.error(...data, `\n\nОписание и решение ошибок: https://chimildic.github.io/goofy/#/errors\nТелеграм: https://t.me/forum_goofy`);
+        isErrorLvl && console.error(...data, `\n\nАпісанне і рашэнне памылак: https://chimildic.github.io/goofy/#/errors\nТэлеграм: https://t.me/forum_goofy`);
     }
 
     function pause(seconds) {
-        isInfoLvl && console.info(`Операция продолжится после паузы ${seconds}с.`);
+        isInfoLvl && console.info(`Аперацыя працягнецца пасля паўзы ${seconds}с.`);
         Utilities.sleep(seconds * 1000);
     }
 
