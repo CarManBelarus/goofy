@@ -7,8 +7,6 @@
 
 - `LASTFM_API_KEY` (строка) - ключ для работы с API Last.fm. Создается [дополнительно](/tuning?id=Настройка-lastfm).
 
-- `MUSIXMATCH_API_KEY` (строка) - ключ от сервиса musixmatch для работы функции [detectLanguage](/reference/filter?id=detectlanguage). Создается [дополнительно](/tuning?id=Настройка-musicmatch).
-
 ## История прослушиваний
 - `ON_SPOTIFY_RECENT_TRACKS` (булево) - при `true` отслеживание истории прослушиваний Spotify. При `false` отключается.
 

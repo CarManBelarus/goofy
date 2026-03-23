@@ -1543,93 +1543,6 @@ const Filter = (function () {
         Combiner.replace(items, filteredTracks);
     }
 
-    function detectLanguage(tracks, params) {
-        if (!KeyValue.MUSIXMATCH_API_KEY) {
-            throw 'Задайте параметр MUSIXMATCH_API_KEY для работы с функцией detectLanguage';
-        }
-
-        let isError = getLyrics();
-        if (!isError) {
-            detectLanguage();
-            match();
-        }
-
-        function match() {
-            Combiner.replace(tracks, tracks.filter(track => {
-                if (![undefined, 'und', '#ERROR!'].includes(track.lyrics.lang)) {
-                    return RangeTracks.isBelongGenres([track.lyrics.lang], params.include)
-                        && !RangeTracks.isBelongBanGenres([track.lyrics.lang], params.exclude)
-                }
-                return !params.isRemoveUnknown;
-            }));
-        }
-
-        function getLyrics() {
-            const url = 'https://api.musixmatch.com/ws/1.1/matcher.lyrics.get?';
-            let unknownLyrics = tracks.filter(t => !t.lyrics || !t.lyrics.lang);
-            let urls = unknownLyrics.reduce((urls, track) => {
-                let queryObj = {
-                    q_track: track.name.formatName(),
-                    q_artist: track.artists[0].name.formatName(),
-                    apikey: KeyValue.MUSIXMATCH_API_KEY,
-                }
-                urls.push(url + CustomUrlFetchApp.parseQuery(queryObj));
-                return urls;
-            }, []);
-
-            return CustomUrlFetchApp.fetchAll(urls).some((response, i) => {
-                let json = JSON.parseFromResponse(response);
-                let text = json.message.body.lyrics
-                    ? json.message.body.lyrics.lyrics_body.split(' ').slice(10, 25).join(' ')
-                    : '';
-                unknownLyrics[i].lyrics = {
-                    text: text.formatName().replace(/["']/g, '').replace(/\n/g, ' ')
-                }
-
-                if (json.message.header.status_code == 404) {
-                    Admin.printInfo('Не найден текст для', `${unknownLyrics[i].artists[0].name} - ${unknownLyrics[i].name}`)
-                    unknownLyrics[i].lyrics.lang = 'und';
-                } else if (json.message.header.status_code != 200) {
-                    Admin.printError('Ошибка при получении текста',
-                        'Возможно превышен лимит от musixmatch.',
-                        'Код:', json.message.header.status_code);
-                    return true;
-                }
-            });
-        }
-
-        function detectLanguage() {
-            const FILENAME = 'DetectLanguage';
-            let unknownLang = tracks.filter(t => !t.lyrics.lang);
-            let row = unknownLang.map(t => `=DETECTLANGUAGE("${t.lyrics.text}")`);
-            if (!row || row.length == 0) {
-                Admin.printInfo('Ноль треков для распознавания языка среди', tracks.length, 'треков');
-                return;
-            }
-
-            let spreadsheet;
-            let files = Cache.UserFolder.getFilesByName(FILENAME);
-            if (files.hasNext()) {
-                spreadsheet = SpreadsheetApp.open(files.next());
-            } else {
-                spreadsheet = SpreadsheetApp.create(FILENAME);
-                let file = DriveApp.getFileById(spreadsheet.getId());
-                file.moveTo(Cache.UserFolder);
-            }
-
-            let sheet = spreadsheet.getActiveSheet();
-            sheet.clear();
-            sheet.appendRow(row);
-            SpreadsheetApp.flush();
-            sheet.getDataRange().getValues()[0].forEach((c, i) => {
-                if (c == '#ERROR!') {
-                    Admin.printError('Ошибка при попытки идентификации языка:', unknownLang[i].lyrics.text);
-                }
-                unknownLang[i].lyrics.lang = c;
-            });
-        }
-    }
-
     function rangeDateRel(items, sinceDays, beforeDays) {
         extractItemsRel(items, sinceDays, beforeDays);
     }
@@ -1807,7 +1720,7 @@ const Filter = (function () {
 
     return {
         removeTracks, removeArtists, removeUnavailable, getDateRel, rangeDateRel, rangeDateAbs, replaceWithSimilar,
-        match, matchExcept, matchExceptRu, matchExceptMix, matchLatinOnly, matchOriginalOnly, detectLanguage,
+        match, matchExcept, matchExceptRu, matchExceptMix, matchLatinOnly, matchOriginalOnly,
         dedupTracks: Deduplicator.dedupTracks,
         dedupArtists: Deduplicator.dedupArtists,
         dedupAlbums: Deduplicator.dedupAlbums,

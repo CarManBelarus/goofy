@@ -6,7 +6,6 @@ function setProperties() {
     UserProperties.setProperty('PRIVATE_CLIENT_SECRET', 'вашеЗначение');
 
     UserProperties.setProperty('LASTFM_API_KEY', 'вашеЗначение');
-    UserProperties.setProperty('MUSIXMATCH_API_KEY', 'вашеЗначение');
 
     UserProperties.setProperty('ON_SPOTIFY_RECENT_TRACKS', 'true');
     UserProperties.setProperty('ON_LASTFM_RECENT_TRACKS', 'false');
