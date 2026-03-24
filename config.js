@@ -16,17 +16,17 @@ function setProperties() {
 
     UserProperties.setProperty('LOG_LEVEL', 'info');
     UserProperties.setProperty('LOCALE', 'RU');
-    UserProperties.setProperty('REQUESTS_IN_ROW', '20');
+    UserProperties.setProperty('REQUESTS_IN_ROW', '10');
     UserProperties.setProperty('MIN_DICE_RATING', '0.6005');
 }
 
 // Чтобы посмотреть текущие значения параметров
-// function logProperties() {
-//     console.log(UserProperties.getProperties())
-// }
+function logProperties() {
+    console.log(UserProperties.getProperties())
+}
 
 // Чтобы сбросить авторизацию и параметры
-// function reset() {
-//     Admin.reset()
-//     setProperties()
-// }
+function reset() {
+    Admin.reset()
+    setProperties()
+}

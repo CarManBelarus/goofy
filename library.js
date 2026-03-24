@@ -1,7 +1,7 @@
 // Документация: https://chimildic.github.io/goofy
 // Телеграм: https://t.me/forum_goofy
 // Форум: https://github.com/Chimildic/goofy/discussions
-const VERSION = '2.4.1';
+const VERSION = '3.0.0';
 const UserProperties = PropertiesService.getUserProperties();
 const KeyValue = UserProperties.getProperties();
 const API_BASE_URL = 'https://api.spotify.com/v1';
@@ -123,7 +123,7 @@ const CustomUrlFetchApp = (function () {
     function fetchAll(requests) {
         requests.forEach((request) => (request.muteHttpExceptions = true));
         let responses = [];
-        let limit = KeyValue.REQUESTS_IN_ROW || 20;
+        let limit = KeyValue.REQUESTS_IN_ROW || 10;
         let count = Math.ceil(requests.length / limit);
         for (let i = 0; i < count; i++) {
             let requestPack = requests.splice(0, limit);
@@ -578,6 +578,7 @@ const Source = (function () {
         Selector.keepRandom(playlists, params.limit);
         return !params.hasOwnProperty('isFlat') || params.isFlat ? getTracks(playlists) : playlists.map(p => {
             p.tracks.items = getTracks([p]);
+            p.items.items = p.tracks.items
             return p;
         });
     }
@@ -916,8 +917,8 @@ const Source = (function () {
 
     function getItemsByPlaylistObject(obj) {
         let items = [];
-        if (obj && obj.tracks && obj.tracks.items) {
-            items = obj.tracks.total <= 100 ? obj.tracks.items : SpotifyRequest.getItemsByNext(obj.tracks);
+        if (obj && obj.items && obj.items.items) {
+            items = obj.items.total <= 100 ? obj.items.items : SpotifyRequest.getItemsByNext(obj.items);
             items.forEach((item) => (item.origin = { id: obj.id, name: obj.name, type: obj.type }));
         }
         return items;
@@ -2108,7 +2109,7 @@ const Playlist = (function () {
     }
 
     function createPlaylist(payload) {
-        let url = `${API_BASE_URL}/users/${User.id}/playlists`;
+        let url = `${API_BASE_URL}/me/playlists`;
         return SpotifyRequest.post(url, payload);
     }
 
@@ -2167,8 +2168,8 @@ const Playlist = (function () {
     function removeTracksRequest(id, tracks) {
         if (tracks.length > 0) {
             let params = {
-                url: `${API_BASE_URL}/playlists/${id}/tracks`,
-                key: 'tracks',
+                url: `${API_BASE_URL}/playlists/${id}/items`,
+                key: 'items',
                 limit: 100,
                 items: getTrackUris(tracks, 'object'),
             }
@@ -2180,7 +2181,7 @@ const Playlist = (function () {
         const SIZE = 100;
         let uris = getTrackUris(data.tracks);
         let count = Math.ceil(uris.length / SIZE);
-        let url = `${API_BASE_URL}/playlists/${data.id}/tracks`;
+        let url = `${API_BASE_URL}/playlists/${data.id}/items`;
         if (count == 0 && requestType == 'put') {
             // Удалить треки в плейлисте
             SpotifyRequest.put(url, { uris: [] });
@@ -2283,78 +2284,70 @@ const Playlist = (function () {
 })();
 
 const Library = (function () {
+    const LIBRARY_LIMIT = 40
     return {
-        checkFavoriteTracks, deleteAlbums, deleteFavoriteTracks, followArtists, followPlaylists, saveAlbums, saveFavoriteTracks, unfollowArtists, unfollowPlaylists,
+        checkFavoriteTracks, deleteAlbums, deleteFavoriteTracks, followArtists, followPlaylists, saveAlbums, saveFavoriteTracks, unfollowArtists, unfollowPlaylists, check, modify
     };
 
     function checkFavoriteTracks(tracks) {
-        let urls = [];
-        let limit = 50;
-        let offset = 50;
-        for (let i = 0; i < Math.ceil(tracks.length / limit); i++) {
-            let ids = tracks.slice(i * limit, offset).map(t => t.id);
-            urls.push(`${API_BASE_URL}/me/tracks/contains?ids=${ids}`);
-            offset += limit;
-        }
-        SpotifyRequest.getAll(urls).flat(1).map((value, i) => {
-            tracks[i].isFavorite = value;
-        })
+        check(tracks, 'track')
     }
 
     function followArtists(artists) {
-        modifyFollowArtists(SpotifyRequest.putItems, artists);
+        modify(SpotifyRequest.put, "artist", artists);
     }
 
     function unfollowArtists(artists) {
-        modifyFollowArtists(SpotifyRequest.deleteItems, artists);
-    }
-
-    function modifyFollowArtists(method, artists) {
-        let url = `${API_BASE_URL}/me/following?type=artist`;
-        let ids = artists.map((artist) => artist.id);
-        method({ url: url, items: ids, limit: 50, key: 'ids' });
+        modify(SpotifyRequest.deleteRequest, "artist", artists);
     }
 
     function followPlaylists(playlists) {
-        modifyFollowPlaylists(SpotifyRequest.put, playlists);
+        modify(SpotifyRequest.put, "playlist", playlists);
     }
 
     function unfollowPlaylists(playlists) {
-        modifyFollowPlaylists(SpotifyRequest.deleteRequest, playlists);
-    }
-
-    function modifyFollowPlaylists(method, playlists) {
-        playlists = Array.isArray(playlists) ? playlists : playlists.split(',').map(id => { return { id: id } });
-        let urls = playlists.map(p => `${API_BASE_URL}/playlists/${p.id}/followers`);
-        urls.forEach(url => method(url));
+        modify(SpotifyRequest.deleteRequest, "playlist", playlists);
     }
 
     function saveFavoriteTracks(tracks) {
-        modifyFavoriteTracks(SpotifyRequest.putItems, tracks);
+        modify(SpotifyRequest.put, "track", tracks)
     }
 
     function deleteFavoriteTracks(tracks) {
-        modifyFavoriteTracks(SpotifyRequest.deleteItems, tracks);
-    }
-
-    function modifyFavoriteTracks(method, tracks) {
-        let url = `${API_BASE_URL}/me/tracks`;
-        let ids = tracks.map((track) => track.id);
-        method({ url: url, items: ids, limit: 50, key: 'ids' });
+        modify(SpotifyRequest.deleteRequest, "track", tracks)
     }
 
     function saveAlbums(albums) {
-        modifyAlbums(SpotifyRequest.putItems, albums);
+        modify(SpotifyRequest.put, "album", albums)
     }
 
     function deleteAlbums(albums) {
-        modifyAlbums(SpotifyRequest.deleteItems, albums);
+        modify(SpotifyRequest.deleteRequest, "album", albums)
     }
 
-    function modifyAlbums(method, albums) {
-        let url = `${API_BASE_URL}/me/albums`;
-        let ids = albums.map((album) => album.id);
-        method({ url: url, items: ids, limit: 50, key: 'ids' });
+    function check(items, type) {
+        let urls = [];
+        let offset = LIBRARY_LIMIT;
+        let count = Math.ceil(items.length / LIBRARY_LIMIT)
+        for (let i = 0; i < count; i++) {
+            let uris = items.slice(i * LIBRARY_LIMIT, offset).map(item => `spotify:${type}:${item.id}`);
+            urls.push(`${API_BASE_URL}/me/library/contains?uris=${uris.join(',')}`);
+            offset += LIBRARY_LIMIT;
+        }
+        SpotifyRequest.getAll(urls).flat(1).map((value, i) => {
+            items[i].isFavorite = value;
+        })
+    }
+
+    function modify(method, type, items) {
+        let itemArray = Array.isArray(items) ? items : items.split(',').map(id => { return { id: id } });
+        let uris = itemArray.map(item => `spotify:${type}:${item.id}`)
+        let count = Math.ceil(uris.length / LIBRARY_LIMIT)
+        for (let i = 0; i < count; i++) {
+            let chunk = uris.splice(0, LIBRARY_LIMIT)
+            let url = `${API_BASE_URL}/me/library?uris=${chunk.join(',')}`;
+            method(url)
+        }
     }
 })();
 
@@ -3003,7 +2996,7 @@ const Search = (function () {
 
     function findBest(keywords, type) {
         let urls = keywords.map((keyword) => {
-            let queryObj = { q: keyword.slice(0, 100), type: type, limit: 20 };
+            let queryObj = { q: keyword.slice(0, 100), type: type, limit: 10 };
             return Utilities.formatString(TEMPLATE, CustomUrlFetchApp.parseQuery(queryObj));
         });
         return SpotifyRequest.getAll(urls).map((response, index) => {
@@ -3041,7 +3034,7 @@ const Search = (function () {
     }
 
     function find(keywords, type, requestCount = 1) {
-        const limit = 50;
+        const limit = 10;
         let resultForKeyword = [];
         keywords.forEach((text) => {
             let result = [];
@@ -3142,7 +3135,7 @@ const getCachedTracks = (function () {
 
     // В объектах Track, Album, Artist Simplified нет ключа popularity
     function isSimplified(item) {
-        return !item.popularity;
+        return !item.hasOwnProperty('popularity');
     }
 
     function isNull(item, sourceId, type) {
@@ -3236,7 +3229,7 @@ const Auth = (function () {
 })();
 
 const SpotifyRequest = (function () {
-    const PRIVATE_API = ['37i9d', new RegExp('\/users\/.*\/playlists'), 'me/playlists', '/recommendations', '/related-artists', '/audio-features', '/browse']
+    const PRIVATE_API = ['37i9d', '/playlists', new RegExp('\/users\/.*\/playlists'), '/tracks/?ids=', '/albums/?ids=', 'artists/?ids=', '/recommendations', '/audio-features', '/related-artists', '/top-tracks', '/browse', "/me"]
     return {
         get, getAll, getItemsByPath, getItemsByNext, getFullObjByIds, post, put, putImage, putItems, deleteItems, deleteRequest,
     };
@@ -3840,8 +3833,8 @@ const Admin = (function () {
     let isInfoLvl, isErrorLvl;
     setLogLevelOnce(KeyValue.LOG_LEVEL);
     if (VERSION != KeyValue.VERSION) {
-        if (KeyValue.REQUESTS_IN_ROW == 40) {
-            UserProperties.setProperty('REQUESTS_IN_ROW', '20')
+        if (KeyValue.REQUESTS_IN_ROW >= 11) {
+            UserProperties.setProperty('REQUESTS_IN_ROW', '10')
         }
         UserProperties.setProperty('VERSION', VERSION);
         sendVersion(VERSION);
