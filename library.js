@@ -3229,7 +3229,7 @@ const Auth = (function () {
 })();
 
 const SpotifyRequest = (function () {
-    const PRIVATE_API = ['37i9d', '/playlists', new RegExp('\/users\/.*\/playlists'), '/tracks/?ids=', '/albums/?ids=', 'artists/?ids=', '/recommendations', '/audio-features', '/related-artists', '/top-tracks', '/browse', "/me"]
+    const PRIVATE_API = ['37i9d', '/playlists', new RegExp('\/users\/.*\/playlists'), '/tracks/?ids=', '/albums/?ids=', 'artists/?ids=', '/recommendations', '/audio-features', '/related-artists', '/top-tracks', '/browse', new RegExp(/\/me(?:\/)?(?:\?.*)?$/)]
     return {
         get, getAll, getItemsByPath, getItemsByNext, getFullObjByIds, post, put, putImage, putItems, deleteItems, deleteRequest,
     };
