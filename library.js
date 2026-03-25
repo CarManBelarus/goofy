@@ -1,7 +1,7 @@
 // Дакументацыя: https://chimildic.github.io/goofy
 // Тэлеграм: https://t.me/forum_goofy
 // Форум: https://github.com/Chimildic/goofy/discussions
-const VERSION = '2.3.0-be'; // Дадамо пазнаку беларускай версіі
+const VERSION = '3.0.0-be'; // Беларуская версія 3.0.0
 const UserProperties = PropertiesService.getUserProperties();
 const KeyValue = UserProperties.getProperties();
 const API_BASE_URL = 'https://api.spotify.com/v1';
@@ -123,7 +123,8 @@ const CustomUrlFetchApp = (function () {
     function fetchAll(requests) {
         requests.forEach((request) => (request.muteHttpExceptions = true));
         let responses = [];
-        let limit = KeyValue.REQUESTS_IN_ROW || 20;
+        // ЗМЯНЕННЕ 3.0.0: Ліміт адначасовых запытаў зменшаны з 20 да 10
+        let limit = KeyValue.REQUESTS_IN_ROW || 10;
         let count = Math.ceil(requests.length / limit);
         for (let i = 0; i < count; i++) {
             let requestPack = requests.splice(0, limit);
@@ -258,6 +259,7 @@ const CustomUrlFetchApp = (function () {
     }
 })();
 
+
 const Audiolist = (function () {
     const MESSAGE_TYPES = { DEFAULT: 'default', ERROR: 'error', WARNINNG: 'warning' }
     const VARIABLE_TYPES = {
@@ -301,10 +303,11 @@ const Audiolist = (function () {
             artist: item.artist?.["#text"] || item.artist?.name || '',
             album: item.album?.["#text"] || '',
             name: item.name || '',
+            // ЗМЯНЕННЕ 3.0.0: Дададзена выцягванне URL вокладкі трэка з LastFM
+            coverUrl: item.image?.[item.image.length - 1]["#text"] || '',
             dateAt: parseInt(item.date?.uts) * 1000 || 0,
         }))
     }
-
 
     function mapTextTracks(items) {
         return items.map(item => {
@@ -319,7 +322,6 @@ const Audiolist = (function () {
             return { query }
         })
     }
-
 
     function parseINI(iniRaw) {
         if (iniRaw == undefined || iniRaw.length == 0) {
@@ -383,7 +385,6 @@ const Audiolist = (function () {
             target[lastKey] = value
         }
     }
-
 
     function combineInputVariables(data, targetType) {
         targetType = targetType || data.inputVariables[0].type
@@ -580,6 +581,7 @@ const Source = (function () {
         Selector.keepRandom(playlists, params.limit);
         return !params.hasOwnProperty('isFlat') || params.isFlat ? getTracks(playlists) : playlists.map(p => {
             p.tracks.items = getTracks([p]);
+            p.items.items = p.tracks.items; // ЗМЯНЕННЕ 3.0.0: Падтрымка новай структуры аб'екта API
             return p;
         });
     }
@@ -918,8 +920,9 @@ const Source = (function () {
 
     function getItemsByPlaylistObject(obj) {
         let items = [];
-        if (obj && obj.tracks && obj.tracks.items) {
-            items = obj.tracks.total <= 100 ? obj.tracks.items : SpotifyRequest.getItemsByNext(obj.tracks);
+        // ЗМЯНЕННЕ 3.0.0: Spotify API змяніў структуру: obj.tracks -> obj.items
+        if (obj && obj.items && obj.items.items) {
+            items = obj.items.total <= 100 ? obj.items.items : SpotifyRequest.getItemsByNext(obj.items);
             items.forEach((item) => (item.origin = { id: obj.id, name: obj.name, type: obj.type }));
         }
         return items;
@@ -1527,109 +1530,22 @@ const Filter = (function () {
         match(items, strRegex, true);
     }
 
+    // ЗМЯНЕННЕ 3.0.0: Рэфактарынг функцыі match. Выкарыстоўваецца апцыянальнае звязванне (?.) для бяспечнай і хуткай праверкі
     function match(items, strRegex, invert = false) {
-        let regex = new RegExp(strRegex, 'i');
+        const regex = new RegExp(strRegex, 'i');
+        const test = (str) => str && regex.test(str.formatName());
+        const testArtists = (list) => list && list.length > 0 && list.every(a => test(a.name));
+
         let filteredTracks = items.filter((item) => {
-            if (typeof item == 'undefined') {
-                return false;
-            } else if (item.hasOwnProperty('album') && item.hasOwnProperty('artists')) {
-                return invert ^ (
-                    regex.test(item.name.formatName()) ||
-                    regex.test(item.album.name.formatName()) ||
-                    item.artists.every(a => regex.test(a.name.formatName())) ||
-                    (item.album.artists && item.album.artists.every(a => regex.test(a.name.formatName())))
-                );
-            }
-            return invert ^ regex.test(item.name.formatName());
+            if (!item) return false;
+            let isMatch =
+                test(item.name) ||
+                test(item.album?.name) ||
+                testArtists(item.artists) ||
+                testArtists(item.album?.artists);
+            return invert ^ isMatch;
         });
         Combiner.replace(items, filteredTracks);
-    }
-
-    function detectLanguage(tracks, params) {
-        if (!KeyValue.MUSIXMATCH_API_KEY) {
-            throw 'Задайце параметр MUSIXMATCH_API_KEY для працы з функцыяй detectLanguage';
-        }
-
-        let isError = getLyrics();
-        if (!isError) {
-            detectLanguage();
-            match();
-        }
-
-        function match() {
-            Combiner.replace(tracks, tracks.filter(track => {
-                if (![undefined, 'und', '#ERROR!'].includes(track.lyrics.lang)) {
-                    return RangeTracks.isBelongGenres([track.lyrics.lang], params.include)
-                        && !RangeTracks.isBelongBanGenres([track.lyrics.lang], params.exclude)
-                }
-                return !params.isRemoveUnknown;
-            }));
-        }
-
-        function getLyrics() {
-            const url = 'https://api.musixmatch.com/ws/1.1/matcher.lyrics.get?';
-            let unknownLyrics = tracks.filter(t => !t.lyrics || !t.lyrics.lang);
-            let urls = unknownLyrics.reduce((urls, track) => {
-                let queryObj = {
-                    q_track: track.name.formatName(),
-                    q_artist: track.artists[0].name.formatName(),
-                    apikey: KeyValue.MUSIXMATCH_API_KEY,
-                }
-                urls.push(url + CustomUrlFetchApp.parseQuery(queryObj));
-                return urls;
-            }, []);
-
-            return CustomUrlFetchApp.fetchAll(urls).some((response, i) => {
-                let json = JSON.parseFromResponse(response);
-                let text = json.message.body.lyrics
-                    ? json.message.body.lyrics.lyrics_body.split(' ').slice(10, 25).join(' ')
-                    : '';
-                unknownLyrics[i].lyrics = {
-                    text: text.formatName().replace(/["']/g, '').replace(/\n/g, ' ')
-                }
-
-                if (json.message.header.status_code == 404) {
-                    Admin.printInfo('Не знойдзены тэкст для', `${unknownLyrics[i].artists[0].name} - ${unknownLyrics[i].name}`)
-                    unknownLyrics[i].lyrics.lang = 'und';
-                } else if (json.message.header.status_code != 200) {
-                    Admin.printError('Памылка пры атрыманні тэксту',
-                        'Магчыма, перавышаны ліміт ад musixmatch.',
-                        'Код:', json.message.header.status_code);
-                    return true;
-                }
-            });
-        }
-
-        function detectLanguage() {
-            const FILENAME = 'DetectLanguage';
-            let unknownLang = tracks.filter(t => !t.lyrics.lang);
-            let row = unknownLang.map(t => `=DETECTLANGUAGE("${t.lyrics.text}")`);
-            if (!row || row.length == 0) {
-                Admin.printInfo('Нуль трэкаў для распазнавання мовы сярод', tracks.length, 'трэкаў');
-                return;
-            }
-
-            let spreadsheet;
-            let files = Cache.UserFolder.getFilesByName(FILENAME);
-            if (files.hasNext()) {
-                spreadsheet = SpreadsheetApp.open(files.next());
-            } else {
-                spreadsheet = SpreadsheetApp.create(FILENAME);
-                let file = DriveApp.getFileById(spreadsheet.getId());
-                file.moveTo(Cache.UserFolder);
-            }
-
-            let sheet = spreadsheet.getActiveSheet();
-            sheet.clear();
-            sheet.appendRow(row);
-            SpreadsheetApp.flush();
-            sheet.getDataRange().getValues()[0].forEach((c, i) => {
-                if (c == '#ERROR!') {
-                    Admin.printError('Памылка пры спробе ідэнтыфікацыі мовы:', unknownLang[i].lyrics.text);
-                }
-                unknownLang[i].lyrics.lang = c;
-            });
-        }
     }
 
     function rangeDateRel(items, sinceDays, beforeDays) {
@@ -1807,9 +1723,10 @@ const Filter = (function () {
         };
     })();
 
+    // ЗМЯНЕННЕ 3.0.0: Функцыя detectLanguage канчаткова выдалена, бо яна патрабавала вонкавых API і Google Sheets
     return {
         removeTracks, removeArtists, removeUnavailable, getDateRel, rangeDateRel, rangeDateAbs, replaceWithSimilar,
-        match, matchExcept, matchExceptRu, matchExceptMix, matchLatinOnly, matchOriginalOnly, detectLanguage,
+        match, matchExcept, matchExceptRu, matchExceptMix, matchLatinOnly, matchOriginalOnly,
         dedupTracks: Deduplicator.dedupTracks,
         dedupArtists: Deduplicator.dedupArtists,
         dedupAlbums: Deduplicator.dedupAlbums,
@@ -2041,7 +1958,7 @@ const Order = (function () {
         }
 
         function compareNumber(x, y) {
-            if (!Number.parseFloat(x[_key]) || !Number.parseFloat(y[_key])) return 0;
+            if (isNaN(x[_key]) || isNaN(y[_key])) return 0;
             return _direction == 'asc' ? x[_key] - y[_key] : y[_key] - x[_key];
         }
 
@@ -2197,7 +2114,7 @@ const Playlist = (function () {
     }
 
     function createPlaylist(payload) {
-        let url = `${API_BASE_URL}/users/${User.id}/playlists`;
+        let url = `${API_BASE_URL}/me/playlists`; // ЗМЯНЕННЕ 3.0.0: /users/{id}/playlists заменена на /me/playlists
         return SpotifyRequest.post(url, payload);
     }
 
@@ -2256,8 +2173,8 @@ const Playlist = (function () {
     function removeTracksRequest(id, tracks) {
         if (tracks.length > 0) {
             let params = {
-                url: `${API_BASE_URL}/playlists/${id}/tracks`,
-                key: 'tracks',
+                url: `${API_BASE_URL}/playlists/${id}/items`, // ЗМЯНЕННЕ 3.0.0: эндпоінт зменены з tracks на items
+                key: 'items',
                 limit: 100,
                 items: getTrackUris(tracks, 'object'),
             }
@@ -2269,7 +2186,7 @@ const Playlist = (function () {
         const SIZE = 100;
         let uris = getTrackUris(data.tracks);
         let count = Math.ceil(uris.length / SIZE);
-        let url = `${API_BASE_URL}/playlists/${data.id}/tracks`;
+        let url = `${API_BASE_URL}/playlists/${data.id}/items`; // ЗМЯНЕННЕ 3.0.0
         if (count == 0 && requestType == 'put') {
             // Выдаліць трэкі ў плэйлісце
             SpotifyRequest.put(url, { uris: [] });
@@ -2324,9 +2241,7 @@ const Playlist = (function () {
 
     function changeCover(data) {
         let img;
-        if (data.hasOwnProperty('coverImage') && data.coverImage) {
-            img = data.coverImage;
-        } else if (data.hasOwnProperty('sourceCover')) {
+        if (data.hasOwnProperty('sourceCover')) {
             img = getCover(data.sourceCover);
         } else if (data.randomCover == 'update' || (data.randomCover == 'once' && hasMosaicCover(data.id))) {
             img = getRandomCover();
@@ -2373,79 +2288,72 @@ const Playlist = (function () {
     }
 })();
 
+// ЗМЯНЕННЕ 3.0.0: Рэфактарынг модуля Library з увядзеннем LIBRARY_LIMIT і пакетнай апрацоўкі
 const Library = (function () {
+    const LIBRARY_LIMIT = 40
     return {
-        checkFavoriteTracks, deleteAlbums, deleteFavoriteTracks, followArtists, followPlaylists, saveAlbums, saveFavoriteTracks, unfollowArtists, unfollowPlaylists,
+        checkFavoriteTracks, deleteAlbums, deleteFavoriteTracks, followArtists, followPlaylists, saveAlbums, saveFavoriteTracks, unfollowArtists, unfollowPlaylists, check, modify
     };
 
     function checkFavoriteTracks(tracks) {
-        let urls = [];
-        let limit = 50;
-        let offset = 50;
-        for (let i = 0; i < Math.ceil(tracks.length / limit); i++) {
-            let ids = tracks.slice(i * limit, offset).map(t => t.id);
-            urls.push(`${API_BASE_URL}/me/tracks/contains?ids=${ids}`);
-            offset += limit;
-        }
-        SpotifyRequest.getAll(urls).flat(1).map((value, i) => {
-            tracks[i].isFavorite = value;
-        })
+        check(tracks, 'track')
     }
 
     function followArtists(artists) {
-        modifyFollowArtists(SpotifyRequest.putItems, artists);
+        modify(SpotifyRequest.put, "artist", artists);
     }
 
     function unfollowArtists(artists) {
-        modifyFollowArtists(SpotifyRequest.deleteItems, artists);
-    }
-
-    function modifyFollowArtists(method, artists) {
-        let url = `${API_BASE_URL}/me/following?type=artist`;
-        let ids = artists.map((artist) => artist.id);
-        method({ url: url, items: ids, limit: 50, key: 'ids' });
+        modify(SpotifyRequest.deleteRequest, "artist", artists);
     }
 
     function followPlaylists(playlists) {
-        modifyFollowPlaylists(SpotifyRequest.put, playlists);
+        modify(SpotifyRequest.put, "playlist", playlists);
     }
 
     function unfollowPlaylists(playlists) {
-        modifyFollowPlaylists(SpotifyRequest.deleteRequest, playlists);
-    }
-
-    function modifyFollowPlaylists(method, playlists) {
-        playlists = Array.isArray(playlists) ? playlists : playlists.split(',').map(id => { return { id: id } });
-        let urls = playlists.map(p => `${API_BASE_URL}/playlists/${p.id}/followers`);
-        urls.forEach(url => method(url));
+        modify(SpotifyRequest.deleteRequest, "playlist", playlists);
     }
 
     function saveFavoriteTracks(tracks) {
-        modifyFavoriteTracks(SpotifyRequest.putItems, tracks);
+        modify(SpotifyRequest.put, "track", tracks)
     }
 
     function deleteFavoriteTracks(tracks) {
-        modifyFavoriteTracks(SpotifyRequest.deleteItems, tracks);
-    }
-
-    function modifyFavoriteTracks(method, tracks) {
-        let url = `${API_BASE_URL}/me/tracks`;
-        let ids = tracks.map((track) => track.id);
-        method({ url: url, items: ids, limit: 50, key: 'ids' });
+        modify(SpotifyRequest.deleteRequest, "track", tracks)
     }
 
     function saveAlbums(albums) {
-        modifyAlbums(SpotifyRequest.putItems, albums);
+        modify(SpotifyRequest.put, "album", albums)
     }
 
     function deleteAlbums(albums) {
-        modifyAlbums(SpotifyRequest.deleteItems, albums);
+        modify(SpotifyRequest.deleteRequest, "album", albums)
     }
 
-    function modifyAlbums(method, albums) {
-        let url = `${API_BASE_URL}/me/albums`;
-        let ids = albums.map((album) => album.id);
-        method({ url: url, items: ids, limit: 50, key: 'ids' });
+    function check(items, type) {
+        let urls = [];
+        let offset = LIBRARY_LIMIT;
+        let count = Math.ceil(items.length / LIBRARY_LIMIT)
+        for (let i = 0; i < count; i++) {
+            let uris = items.slice(i * LIBRARY_LIMIT, offset).map(item => `spotify:${type}:${item.id}`);
+            urls.push(`${API_BASE_URL}/me/library/contains?uris=${uris.join(',')}`);
+            offset += LIBRARY_LIMIT;
+        }
+        SpotifyRequest.getAll(urls).flat(1).map((value, i) => {
+            items[i].isFavorite = value;
+        })
+    }
+
+    function modify(method, type, items) {
+        let itemArray = Array.isArray(items) ? items : items.split(',').map(id => { return { id: id } });
+        let uris = itemArray.map(item => `spotify:${type}:${item.id}`)
+        let count = Math.ceil(uris.length / LIBRARY_LIMIT)
+        for (let i = 0; i < count; i++) {
+            let chunk = uris.splice(0, LIBRARY_LIMIT)
+            let url = `${API_BASE_URL}/me/library?uris=${chunk.join(',')}`;
+            method(url)
+        }
     }
 })();
 
@@ -3094,7 +3002,7 @@ const Search = (function () {
 
     function findBest(keywords, type) {
         let urls = keywords.map((keyword) => {
-            let queryObj = { q: keyword.slice(0, 100), type: type, limit: 20 };
+            let queryObj = { q: keyword.slice(0, 100), type: type, limit: 10 }; // ЗМЯНЕННЕ 3.0.0: ліміт з 20 да 10
             return Utilities.formatString(TEMPLATE, CustomUrlFetchApp.parseQuery(queryObj));
         });
         return SpotifyRequest.getAll(urls).map((response, index) => {
@@ -3132,7 +3040,7 @@ const Search = (function () {
     }
 
     function find(keywords, type, requestCount = 1) {
-        const limit = 50;
+        const limit = 10; // ЗМЯНЕННЕ 3.0.0: ліміт з 50 да 10
         let resultForKeyword = [];
         keywords.forEach((text) => {
             let result = [];
@@ -3233,7 +3141,7 @@ const getCachedTracks = (function () {
 
     // У аб'ектах Track, Album, Artist Simplified няма ключа popularity
     function isSimplified(item) {
-        return !item.popularity;
+        return !item.hasOwnProperty('popularity');
     }
 
     function isNull(item, sourceId, type) {
@@ -3327,7 +3235,8 @@ const Auth = (function () {
 })();
 
 const SpotifyRequest = (function () {
-    const PRIVATE_API = ['37i9d', new RegExp('\/users\/.*\/playlists'), 'me/playlists', '/recommendations', '/related-artists', '/audio-features', '/browse']
+    // ЗМЯНЕННЕ 3.0.0: Пашыраны спіс прыватных эндпоінтаў
+    const PRIVATE_API = ['37i9d', '/playlists', new RegExp('\/users\/.*\/playlists'), '/tracks/?ids=', '/albums/?ids=', 'artists/?ids=', '/recommendations', '/audio-features', '/related-artists', '/top-tracks', '/browse', new RegExp(/\/me(?:\/)?(?:\?.*)?$/)]
     return {
         get, getAll, getItemsByPath, getItemsByNext, getFullObjByIds, post, put, putImage, putItems, deleteItems, deleteRequest,
     };
@@ -3575,27 +3484,15 @@ const Cache = (function () {
     function read(filepath) {
         let content = Storage.getContent(filepath);
         if (!content) {
-            content = withFileLock(filepath, getContentFromFile);
+            content = getContentFromFile(filepath);
             Storage.setContent(filepath, content);
         }
         return Selector.sliceCopy(content);
+    }
 
-        function getContentFromFile(attempt = 0) {
-            if (attempt == 3)
-                throw new Error(`Невядомая памылка пры чытанні файла ${filepath}`);
-            let file = findFile(filepath);
-            let ext = obtainFileExtension(filepath);
-            if (!file) {
-                return ext == 'json' ? [] : '';
-            }
-            let str = tryGetBlobAsString(file);
-            if (str.length == 0) {
-                Admin.printInfo('Пусты радок з blob-аб\'екта');
-                Admin.pause(2);
-                return getContentFromFile(++attempt)
-            }
-            return ext == 'json' ? JSON.parseFromString(str) : str;
-        }
+    // ЗМЯНЕННЕ 3.0.0: Бяспечны запіс і апэнд праз LockService
+    function writeWithLock(filepath, content) {
+        return withFileLock(filepath, write, arguments)
     }
 
     function write(filepath, content) {
@@ -3621,33 +3518,31 @@ const Cache = (function () {
 
     function append(filepath, content, place = 'end', limit = 400000) {
         if (!content || content.length == 0) return;
-        let currentContent = read(filepath);
-        let ext = obtainFileExtension(filepath);
-        return ext == 'json' ? appendJSON() : appendString();
+        return withFileLock(filepath, () => {
+            let currentContent = getContentFromFile(filepath)
+            let ext = obtainFileExtension(filepath);
+            return ext == 'json' ? appendJSON() : appendString();
 
-        function appendJSON() {
-            return place == 'begin'
-                ? appendNewData(content, currentContent)
-                : appendNewData(currentContent, content);
+            function appendJSON() {
+                return place == 'begin'
+                    ? appendNewData(content, currentContent)
+                    : appendNewData(currentContent, content);
 
-            function appendNewData(xData, yData) {
-                let allData = [];
-                Combiner.push(allData, xData, yData);
-                Selector.keepFirst(allData, limit);
-                writeWithLock(filepath, allData);
-                return allData.length;
+                function appendNewData(xData, yData) {
+                    let allData = [];
+                    Combiner.push(allData, xData, yData);
+                    Selector.keepFirst(allData, limit);
+                    write(filepath, allData);
+                    return allData.length;
+                }
             }
-        }
 
-        function appendString() {
-            let raw = place == 'begin' ? (content + currentContent) : (currentContent + content);
-            writeWithLock(filepath, raw);
-            return raw.length;
-        }
-    }
-
-    function writeWithLock(filepath, content) {
-        return withFileLock(filepath, write, arguments)
+            function appendString() {
+                let raw = place == 'begin' ? (content + currentContent) : (currentContent + content);
+                write(filepath, raw);
+                return raw.length;
+            }
+        }, arguments)
     }
 
     function withFileLock(filename, targetFunction, args) {
@@ -3829,6 +3724,23 @@ const Cache = (function () {
         return ext.length == 2 ? ext[1] : 'json';
     }
 
+    function getContentFromFile(filepath, attempt = 0) {
+        if (attempt == 3)
+            throw new Error(`Невядомая памылка пры чытанні файла ${filepath}`);
+        let file = findFile(filepath);
+        let ext = obtainFileExtension(filepath);
+        if (!file) {
+            return ext == 'json' ? [] : '';
+        }
+        let str = tryGetBlobAsString(file);
+        if (str.length == 0) {
+            Admin.printInfo('Пусты радок з blob-аб\'екта');
+            Admin.pause(2);
+            return getContentFromFile(filepath, ++attempt)
+        }
+        return ext == 'json' ? JSON.parseFromString(str) : str;
+    }
+
     function tryGetBlobAsString(file) {
         try {
             return file.getBlob().getDataAsString();
@@ -3929,8 +3841,9 @@ const Admin = (function () {
     let isInfoLvl, isErrorLvl;
     setLogLevelOnce(KeyValue.LOG_LEVEL);
     if (VERSION != KeyValue.VERSION) {
-        if (KeyValue.REQUESTS_IN_ROW == 40) {
-            UserProperties.setProperty('REQUESTS_IN_ROW', '20')
+        // ЗМЯНЕННЕ 3.0.0: жорсткі ліміт у 10 запытаў для пазбягання памылкі 429 ад Spotify
+        if (KeyValue.REQUESTS_IN_ROW >= 11) {
+            UserProperties.setProperty('REQUESTS_IN_ROW', '10')
         }
         UserProperties.setProperty('VERSION', VERSION);
         sendVersion(VERSION);
