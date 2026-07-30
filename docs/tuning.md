@@ -44,11 +44,3 @@
 4. Запустить в редакторе выполнение функции `setProperties`.
 
 ![Lastfm account api](/img/lastfm_account_api3.png)
-
-## Настройка musicmatch
-
-Необходимо для функции [detectLanguage](/reference/filter?id=detectlanguage). Если не используется, выполнять не нужно. 
-
-1. Зайдите на сайт [developer.musixmatch.com](https://developer.musixmatch.com/signup), чтобы зарегистрироваться и получить API ключ. Телефон и адрес заполните произвольно (123 и World, к примеру). Почта реальная, попросит подтвердить.  
-2. После подтверждения почты зайдите в [дэшборд приложений](https://developer.musixmatch.com/admin/applications). Скопируйте ключ.  
-3. Вставьте в параметры из файла `config` и запустите функцию `setProperties`.

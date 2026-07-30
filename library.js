@@ -123,7 +123,6 @@ const CustomUrlFetchApp = (function () {
     function fetchAll(requests) {
         requests.forEach((request) => (request.muteHttpExceptions = true));
         let responses = [];
-        // ЗМЯНЕННЕ 3.0.0: Ліміт адначасовых запытаў зменшаны з 20 да 10
         let limit = KeyValue.REQUESTS_IN_ROW || 10;
         let count = Math.ceil(requests.length / limit);
         for (let i = 0; i < count; i++) {
@@ -303,7 +302,6 @@ const Audiolist = (function () {
             artist: item.artist?.["#text"] || item.artist?.name || '',
             album: item.album?.["#text"] || '',
             name: item.name || '',
-            // ЗМЯНЕННЕ 3.0.0: Дададзена выцягванне URL вокладкі трэка з LastFM
             coverUrl: item.image?.[item.image.length - 1]["#text"] || '',
             dateAt: parseInt(item.date?.uts) * 1000 || 0,
         }))
@@ -581,7 +579,7 @@ const Source = (function () {
         Selector.keepRandom(playlists, params.limit);
         return !params.hasOwnProperty('isFlat') || params.isFlat ? getTracks(playlists) : playlists.map(p => {
             p.tracks.items = getTracks([p]);
-            p.items.items = p.tracks.items; // ЗМЯНЕННЕ 3.0.0: Падтрымка новай структуры аб'екта API
+            p.items.items = p.tracks.items
             return p;
         });
     }
@@ -920,7 +918,6 @@ const Source = (function () {
 
     function getItemsByPlaylistObject(obj) {
         let items = [];
-        // ЗМЯНЕННЕ 3.0.0: Spotify API змяніў структуру: obj.tracks -> obj.items
         if (obj && obj.items && obj.items.items) {
             items = obj.items.total <= 100 ? obj.items.items : SpotifyRequest.getItemsByNext(obj.items);
             items.forEach((item) => (item.origin = { id: obj.id, name: obj.name, type: obj.type }));
@@ -1530,7 +1527,7 @@ const Filter = (function () {
         match(items, strRegex, true);
     }
 
-    // ЗМЯНЕННЕ 3.0.0: Рэфактарынг функцыі match. Выкарыстоўваецца апцыянальнае звязванне (?.) для бяспечнай і хуткай праверкі
+
     function match(items, strRegex, invert = false) {
         const regex = new RegExp(strRegex, 'i');
         const test = (str) => str && regex.test(str.formatName());
@@ -2114,7 +2111,7 @@ const Playlist = (function () {
     }
 
     function createPlaylist(payload) {
-        let url = `${API_BASE_URL}/me/playlists`; // ЗМЯНЕННЕ 3.0.0: /users/{id}/playlists заменена на /me/playlists
+        let url = `${API_BASE_URL}/me/playlists`;
         return SpotifyRequest.post(url, payload);
     }
 
@@ -2173,7 +2170,7 @@ const Playlist = (function () {
     function removeTracksRequest(id, tracks) {
         if (tracks.length > 0) {
             let params = {
-                url: `${API_BASE_URL}/playlists/${id}/items`, // ЗМЯНЕННЕ 3.0.0: эндпоінт зменены з tracks на items
+                url: `${API_BASE_URL}/playlists/${id}/items`,
                 key: 'items',
                 limit: 100,
                 items: getTrackUris(tracks, 'object'),
@@ -2186,7 +2183,7 @@ const Playlist = (function () {
         const SIZE = 100;
         let uris = getTrackUris(data.tracks);
         let count = Math.ceil(uris.length / SIZE);
-        let url = `${API_BASE_URL}/playlists/${data.id}/items`; // ЗМЯНЕННЕ 3.0.0
+        let url = `${API_BASE_URL}/playlists/${data.id}/items`;
         if (count == 0 && requestType == 'put') {
             // Выдаліць трэкі ў плэйлісце
             SpotifyRequest.put(url, { uris: [] });
@@ -3002,7 +2999,7 @@ const Search = (function () {
 
     function findBest(keywords, type) {
         let urls = keywords.map((keyword) => {
-            let queryObj = { q: keyword.slice(0, 100), type: type, limit: 10 }; // ЗМЯНЕННЕ 3.0.0: ліміт з 20 да 10
+            let queryObj = { q: keyword.slice(0, 100), type: type, limit: 10 };
             return Utilities.formatString(TEMPLATE, CustomUrlFetchApp.parseQuery(queryObj));
         });
         return SpotifyRequest.getAll(urls).map((response, index) => {
@@ -3040,7 +3037,7 @@ const Search = (function () {
     }
 
     function find(keywords, type, requestCount = 1) {
-        const limit = 10; // ЗМЯНЕННЕ 3.0.0: ліміт з 50 да 10
+        const limit = 10;
         let resultForKeyword = [];
         keywords.forEach((text) => {
             let result = [];
@@ -3235,7 +3232,6 @@ const Auth = (function () {
 })();
 
 const SpotifyRequest = (function () {
-    // ЗМЯНЕННЕ 3.0.0: Пашыраны спіс прыватных эндпоінтаў
     const PRIVATE_API = ['37i9d', '/playlists', new RegExp('\/users\/.*\/playlists'), '/tracks/?ids=', '/albums/?ids=', 'artists/?ids=', '/recommendations', '/audio-features', '/related-artists', '/top-tracks', '/browse', new RegExp(/\/me(?:\/)?(?:\?.*)?$/)]
     return {
         get, getAll, getItemsByPath, getItemsByNext, getFullObjByIds, post, put, putImage, putItems, deleteItems, deleteRequest,
@@ -3490,7 +3486,6 @@ const Cache = (function () {
         return Selector.sliceCopy(content);
     }
 
-    // ЗМЯНЕННЕ 3.0.0: Бяспечны запіс і апэнд праз LockService
     function writeWithLock(filepath, content) {
         return withFileLock(filepath, write, arguments)
     }
@@ -3841,7 +3836,6 @@ const Admin = (function () {
     let isInfoLvl, isErrorLvl;
     setLogLevelOnce(KeyValue.LOG_LEVEL);
     if (VERSION != KeyValue.VERSION) {
-        // ЗМЯНЕННЕ 3.0.0: жорсткі ліміт у 10 запытаў для пазбягання памылкі 429 ад Spotify
         if (KeyValue.REQUESTS_IN_ROW >= 11) {
             UserProperties.setProperty('REQUESTS_IN_ROW', '10')
         }

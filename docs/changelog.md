@@ -6,8 +6,13 @@
 
 [Скопируйте обновленный код](https://script.google.com/d/1DnC4H7yjqPV2unMZ_nmB-1bDSJT9wQUJ7Wq-ijF4Nc7Fl3qnbT0FkPSr/edit?usp=sharing).
 
+### Версия 3.0.0
+- Новая [миграция](/migrate?id=Версия-30) в связи с ужесточением политики Spotify API
+- Удалена функция `detectLanguage` так как сервис Musixmatch больше не дает бесплатное API
+- `REQUESTS_IN_ROW` принудительно сброшен до 10.
+
 ### Версия 2.0.4
-- Выполните [миграцию](/migrate2.md)
+- Выполните [миграцию](/migrate.md)
 - Добавлена функция [getRecomArtists](/reference/source?id=getrecomartists) на замену ошибкам от [getRelatedArtists](/reference/source?id=getrelatedartists) после обновленной политике Spotify
 
 ## Версия 1.8.5

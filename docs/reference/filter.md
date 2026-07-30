@@ -7,7 +7,6 @@
 | [dedupArtists](/reference/filter?id=dedupartists) | - | Удалить дубликаты исполнителей. |
 | [dedupTracks](/reference/filter?id=deduptracks) | - | Удалить дубликаты треков. |
 | [getDateRel](/reference/filter?id=getdaterel) | Дата | Вычислить дату по смещению в днях относительно сегодня. |
-| [detectLanguage](/reference/filter?id=detectlanguage) | - | Определить по тексту основной язык исполнения треков. |
 | [getLastOutRange](/reference/filter?id=getlastoutrange) | Массив | Узнать треки, которые не прошли последнюю фильтрацию [rangeTracks](/reference/filter?id=rangetracks) |
 | [match](/reference/filter?id=match) | - | Удалить треки, которые не удовлетворяют регулярному выражению. |
 | [matchExcept](/reference/filter?id=matchexcept) | - | Оболочка для [match](/reference/filter?id=match) с инверсией. |
@@ -95,67 +94,6 @@ Filter.dedupTracks(tracks);
 ### Примеры :id=getdaterel-examples {docsify-ignore}
 
 Пример в шаблоне [любимо и забыто](/template?id=Любимо-и-забыто).
-
-## detectLanguage
-
-Определить по тексту основной язык исполнения треков.
-
-!> Требуется указать параметр `MUSIXMATCH_API_KEY`, [подробнее](/config). Сервис ограничивает количество запросов в день. Используйте функцию только после сокращения массива треков другими фильтрами.
-
-### Аргументы :id=detectlanguage-arguments {docsify-ignore}
-
-| Имя | Тип | Описание |
-|-----|-----|----------|
-| `tracks` | Массив | Треки, для которых требуется определить основной язык исполнения. |
-| `params` | Объект | Параметры фильтрации. |
-
-#### Параметры фильтрации :id=detectlanguage-params {docsify-ignore}
-
-| Имя | Тип | Описание |
-|-----|-----|----------|
-| `isRemoveUnknown` | Булево | Действие при неизвестном языке (когда нет в базе `musixmatch` или он танцевальный). При `true` удаляет такие треки, при `false` оставляет. По умолчанию `false`. |
-| `include` | Массив | Языки, которые нужно оставить. |
-| `exclude` | Массив | Языки, которые нужно удалить. |
-
-?> Принимаются двухбуквенные обозначения языка в нижнем регистре. [Список языков](https://ru.wikipedia.org/wiki/Коды_языков).
-
-### Возврат :id=detectlanguage-return {docsify-ignore}
-
-Нет возвращаемого значения. Изменяет входной массив при указании параметров фильтрации.
-
-К трекам добавляется объект `lyrics`, который содержит обозначение языка `lang` и краткий отрывок текста `text`.
-
-### Примеры :id=detectlanguage-examples {docsify-ignore}
-
-1. Берем [топ Германии](https://open.spotify.com/playlist/37i9dQZEVXbJiZcmkrIHGU?si=33fdf90a2b854fc8) и оставляем только немецкий.
-
-```js
-let tracks = Source.getPlaylistTracks('', '37i9dQZEVXbJiZcmkrIHGU');
-Filter.detectLanguage(tracks, {
-  isRemoveUnknown: true,
-  include: ['de'],
-});
-```
-
-2. Схожая ситуация, исключаем русский.
-
-```js
-let tracks = Source.getPlaylistTracks('', '37i9dQZEVXbL8l7ra5vVdB');
-Filter.detectLanguage(tracks, {
-  isRemoveUnknown: true,
-  exclude: ['ru'],
-});
-```
-
-3. Узнать какие языки есть в массиве.
-
-```js
-let tracks = Source.getPlaylistTracks('', '37i9dQZEVXbL8l7ra5vVdB');
-Filter.detectLanguage(tracks, { isRemoveUnknown: true });
-console.log(Array.from(new Set(tracks.map(t => t.lyrics.lang))).join('\n'));
-```
-
-?> Для набора треков на разных языках подойдет функция поиска [mineTracks](/reference/source?id=minetracks).
 
 ## getLastOutRange
 
@@ -255,8 +193,6 @@ Filter.matchExceptMix(tracks);
 
 Удалить треки, содержащие кириллицу в названии. Оболочка для [matchExcept](/reference/filter?id=matchexcept) с аргументом `strRegex = '[а-яА-ЯёЁ]+'`.
 
-?> Для фильтра по языку трека используйте [detectLanguage](/reference/filter?id=detectlanguage).
-
 ### Аргументы :id=matchexceptru-arguments {docsify-ignore}
 
 | Имя | Тип | Описание |
@@ -279,8 +215,6 @@ Filter.matchExceptRu(tracks);
 ## matchLatinOnly
 
 Удалить все треки, кроме содержащих латиницу в названии. Оболочка для [match](/reference/filter?id=match) с аргументом `strRegex = '^[a-zA-Z0-9 ]+$'`.
-
-?> Для фильтра по языку трека используйте [detectLanguage](/reference/filter?id=detectlanguage).
 
 ### Аргументы :id=matchlatinonly-arguments {docsify-ignore}
 
